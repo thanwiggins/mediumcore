@@ -1,0 +1,5 @@
+{
+  "selectWorld.gameMode.mediumcore": "§eМежсложный",
+  "selectWorld.gameMode.mediumcore.info": "Режим выживания с максимальным здоровьем, понижаемым с каждой потерянной жизнью.",
+  "gamerule.mediumcoreMode": "Режим межсложности"
+}
