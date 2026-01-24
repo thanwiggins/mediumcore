@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
@@ -49,6 +50,7 @@ public class CommonEvents {
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(player, healthModifiedBy);
+                setSpectatorIfNoHearts(player);
             }
         }
     }
@@ -73,6 +75,7 @@ public class CommonEvents {
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(event.getEntity(), healthModifiedBy);
+                setSpectatorIfNoHearts(event.getEntity());
             }
         }
     }
@@ -98,5 +101,11 @@ public class CommonEvents {
         attribute.removePermanentModifier(HEALTH_MODIFIER_UUID);
         attribute.addPermanentModifier(new AttributeModifier(HEALTH_MODIFIER_UUID, "MediumcoreHealthMod", healthModifiedBy, AttributeModifier.Operation.ADDITION));
         player.setHealth(Mth.clamp(player.getHealth(), 0, player.getMaxHealth()));
+    }
+
+    private void setSpectatorIfNoHearts(Player player) {
+        if (player instanceof ServerPlayer serverPlayer && serverPlayer.getMaxHealth() <= 0.0D) {
+            serverPlayer.setGameMode(GameType.SPECTATOR);
+        }
     }
 }
