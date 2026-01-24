@@ -27,6 +27,7 @@ import java.util.UUID;
 public class CommonEvents {
 
     private static final String HEALTH_MODIFIER_TAG = "MediumcoreHealthModifier";
+    private static final String RAW_MAX_HEALTH_TAG = "MediumcoreRawMaxHealth";
     private static final UUID INITIAL_HEALTH_MODIFIER_UUID = Mth.createInsecureUUID(RandomSource.create(2929292911123L));
     private static final UUID HEALTH_MODIFIER_UUID = Mth.createInsecureUUID(RandomSource.create(111222333441249L));
 
@@ -48,9 +49,12 @@ public class CommonEvents {
             if (mediumcore && player instanceof ServerPlayer) {
                 Mediumcore.sendNonLocal(new SyncMediumcoreGameRuleMessage(mediumcore), (ServerPlayer) player);
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
+                if (initializeRawMaxHealth(tag, player)) {
+                    event.getEntity().getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
+                }
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(player, healthModifiedBy);
-                setSpectatorIfNoHearts(player);
+                setSpectatorIfNoHearts(player, tag);
             }
         }
     }
@@ -60,8 +64,10 @@ public class CommonEvents {
         if (event.getEntity() instanceof Player player && !player.level().isClientSide) {
             if (GameRuleRegistry.isMediumCoreMode(player.level().getGameRules())) {
                 CompoundTag tag = player.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
-                double clampedHealth = Mth.clamp(player.getMaxHealth() - Mediumcore.CONFIG.healthDecreasePerDeath.get(), Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double rawMaxHealth = getRawMaxHealth(tag, player) - Mediumcore.CONFIG.healthDecreasePerDeath.get();
+                double clampedHealth = Mth.clamp(rawMaxHealth, Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG) + (clampedHealth - player.getMaxHealth());
+                tag.putDouble(RAW_MAX_HEALTH_TAG, rawMaxHealth);
                 tag.putDouble(HEALTH_MODIFIER_TAG, healthModifiedBy);
                 player.getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
             }
@@ -75,7 +81,7 @@ public class CommonEvents {
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(event.getEntity(), healthModifiedBy);
-                setSpectatorIfNoHearts(event.getEntity());
+                setSpectatorIfNoHearts(event.getEntity(), tag);
             }
         }
     }
@@ -85,8 +91,10 @@ public class CommonEvents {
         if (event.getEntity() instanceof Player player && !player.level().isClientSide) {
             if (event.getItem().is(MediumcoreTags.RESTORES_MAX_HEALTH) && GameRuleRegistry.isMediumCoreMode(event.getEntity().level().getGameRules())) {
                 CompoundTag tag = player.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
-                double clampedHealth = Mth.clamp(player.getMaxHealth() + Mediumcore.CONFIG.healthIncreasePerHeal.get(), Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double rawMaxHealth = Math.min(getRawMaxHealth(tag, player) + Mediumcore.CONFIG.healthIncreasePerHeal.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double clampedHealth = Mth.clamp(rawMaxHealth, Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG) + (clampedHealth - player.getMaxHealth());
+                tag.putDouble(RAW_MAX_HEALTH_TAG, rawMaxHealth);
                 tag.putDouble(HEALTH_MODIFIER_TAG, healthModifiedBy);
                 player.getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
                 updateHealth(player, healthModifiedBy);
@@ -103,9 +111,24 @@ public class CommonEvents {
         player.setHealth(Mth.clamp(player.getHealth(), 0, player.getMaxHealth()));
     }
 
-    private void setSpectatorIfNoHearts(Player player) {
-        if (player instanceof ServerPlayer serverPlayer && serverPlayer.getMaxHealth() <= 0.0D) {
+    private void setSpectatorIfNoHearts(Player player, CompoundTag tag) {
+        if (player instanceof ServerPlayer serverPlayer && getRawMaxHealth(tag, player) < 0.0D) {
             serverPlayer.setGameMode(GameType.SPECTATOR);
         }
+    }
+
+    private boolean initializeRawMaxHealth(CompoundTag tag, Player player) {
+        if (!tag.contains(RAW_MAX_HEALTH_TAG)) {
+            tag.putDouble(RAW_MAX_HEALTH_TAG, player.getMaxHealth());
+            return true;
+        }
+        return false;
+    }
+
+    private double getRawMaxHealth(CompoundTag tag, Player player) {
+        if (!tag.contains(RAW_MAX_HEALTH_TAG)) {
+            return player.getMaxHealth();
+        }
+        return tag.getDouble(RAW_MAX_HEALTH_TAG);
     }
 }
