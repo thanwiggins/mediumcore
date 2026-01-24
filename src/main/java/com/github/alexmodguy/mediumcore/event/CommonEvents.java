@@ -27,6 +27,7 @@ import java.util.UUID;
 public class CommonEvents {
 
     private static final String HEALTH_MODIFIER_TAG = "MediumcoreHealthModifier";
+    private static final String OUT_OF_HEARTS_TAG = "MediumcoreOutOfHearts";
     private static final UUID INITIAL_HEALTH_MODIFIER_UUID = Mth.createInsecureUUID(RandomSource.create(2929292911123L));
     private static final UUID HEALTH_MODIFIER_UUID = Mth.createInsecureUUID(RandomSource.create(111222333441249L));
 
@@ -60,9 +61,13 @@ public class CommonEvents {
         if (event.getEntity() instanceof Player player && !player.level().isClientSide) {
             if (GameRuleRegistry.isMediumCoreMode(player.level().getGameRules())) {
                 CompoundTag tag = player.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
-                double clampedHealth = Mth.clamp(player.getMaxHealth() - Mediumcore.CONFIG.healthDecreasePerDeath.get(), Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double projectedHealth = player.getMaxHealth() - Mediumcore.CONFIG.healthDecreasePerDeath.get();
+                double clampedHealth = Mth.clamp(projectedHealth, Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG) + (clampedHealth - player.getMaxHealth());
                 tag.putDouble(HEALTH_MODIFIER_TAG, healthModifiedBy);
+                if (projectedHealth <= 0.0D) {
+                    tag.putBoolean(OUT_OF_HEARTS_TAG, true);
+                }
                 player.getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
             }
         }
@@ -104,8 +109,11 @@ public class CommonEvents {
     }
 
     private void setSpectatorIfNoHearts(Player player) {
-        if (player instanceof ServerPlayer serverPlayer && serverPlayer.getMaxHealth() <= 0.0D) {
-            serverPlayer.setGameMode(GameType.SPECTATOR);
+        if (player instanceof ServerPlayer serverPlayer) {
+            CompoundTag tag = serverPlayer.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
+            if (serverPlayer.getMaxHealth() <= 0.0D || tag.getBoolean(OUT_OF_HEARTS_TAG)) {
+                serverPlayer.setGameMode(GameType.SPECTATOR);
+            }
         }
     }
 }
