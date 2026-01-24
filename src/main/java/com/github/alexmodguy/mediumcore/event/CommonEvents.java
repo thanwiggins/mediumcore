@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.living.LivingEntityUseItemEvent;
@@ -49,6 +50,7 @@ public class CommonEvents {
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(player, healthModifiedBy);
+                enforceHardcoreSpectator(player);
             }
         }
     }
@@ -58,7 +60,7 @@ public class CommonEvents {
         if (event.getEntity() instanceof Player player && !player.level().isClientSide) {
             if (GameRuleRegistry.isMediumCoreMode(player.level().getGameRules())) {
                 CompoundTag tag = player.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
-                double clampedHealth = Mth.clamp(player.getMaxHealth() - Mediumcore.CONFIG.healthDecreasePerDeath.get(), Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double clampedHealth = Mth.clamp(player.getMaxHealth() - Mediumcore.CONFIG.healthDecreasePerDeath.get(), 0.0D, Mediumcore.CONFIG.maxPlayerHealth.get());
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG) + (clampedHealth - player.getMaxHealth());
                 tag.putDouble(HEALTH_MODIFIER_TAG, healthModifiedBy);
                 player.getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
@@ -73,6 +75,7 @@ public class CommonEvents {
                 CompoundTag tag = event.getEntity().getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG);
                 updateHealth(event.getEntity(), healthModifiedBy);
+                enforceHardcoreSpectator(event.getEntity());
             }
         }
     }
@@ -82,7 +85,7 @@ public class CommonEvents {
         if (event.getEntity() instanceof Player player && !player.level().isClientSide) {
             if (event.getItem().is(MediumcoreTags.RESTORES_MAX_HEALTH) && GameRuleRegistry.isMediumCoreMode(event.getEntity().level().getGameRules())) {
                 CompoundTag tag = player.getPersistentData().getCompound(Player.PERSISTED_NBT_TAG);
-                double clampedHealth = Mth.clamp(player.getMaxHealth() + Mediumcore.CONFIG.healthIncreasePerHeal.get(), Mediumcore.CONFIG.minimumPlayerHealth.get(), Mediumcore.CONFIG.maxPlayerHealth.get());
+                double clampedHealth = Mth.clamp(player.getMaxHealth() + Mediumcore.CONFIG.healthIncreasePerHeal.get(), 0.0D, Mediumcore.CONFIG.maxPlayerHealth.get());
                 double healthModifiedBy = tag.getDouble(HEALTH_MODIFIER_TAG) + (clampedHealth - player.getMaxHealth());
                 tag.putDouble(HEALTH_MODIFIER_TAG, healthModifiedBy);
                 player.getPersistentData().put(Player.PERSISTED_NBT_TAG, tag);
@@ -98,5 +101,11 @@ public class CommonEvents {
         attribute.removePermanentModifier(HEALTH_MODIFIER_UUID);
         attribute.addPermanentModifier(new AttributeModifier(HEALTH_MODIFIER_UUID, "MediumcoreHealthMod", healthModifiedBy, AttributeModifier.Operation.ADDITION));
         player.setHealth(Mth.clamp(player.getHealth(), 0, player.getMaxHealth()));
+    }
+
+    private void enforceHardcoreSpectator(Player player) {
+        if (player instanceof ServerPlayer serverPlayer && serverPlayer.getMaxHealth() <= 0.0D) {
+            serverPlayer.setGameMode(GameType.SPECTATOR);
+        }
     }
 }
